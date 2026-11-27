@@ -1,5 +1,5 @@
 <!-- ============================================================
-     INDEX.HTML — Voda, версия 1.2
+     INDEX.HTML — Voda, версия 1.2.1 (кнопка «Сервисы» — в меню рабочих сервисов)
      Нужен скрипт таблицы apps-script/Code.gs версии 1.2
      Изменения относительно 1.1:
        1. Шильдик «Отчёт за: месяц год» вверху листа
@@ -76,6 +76,9 @@ input { font: inherit; color: inherit; }
 .conn.on::before { background: #5ff0a8; box-shadow: 0 0 6px #5ff0a8; }
 .conn.off::before { background: #ffd166; }
 .conn.bad::before { background: #ff7b6b; }
+.btn.svc { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; min-height: 34px; font-size: 13.5px; }
+.btn.svc svg { width: 17px; height: 17px; }
+.login .btn.login-svc { width: auto; margin-top: 16px; padding: 8px 16px; font-size: 14px; }
 .linkbtn { background: transparent; border: 0; color: #d7f1fc; text-decoration: underline; text-underline-offset: 3px; font-size: 13px; padding: 4px; }
 
 .tools { max-width: 1200px; margin: 0 auto; padding: 8px 18px 2px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; z-index: 2; }
@@ -299,6 +302,7 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
             <div class="err" id="pwdErr"></div>
             <button class="btn primary" id="pwdBtn">Войти</button>
         </div>
+        <button type="button" class="btn svc login-svc" onclick="location.href=MENU_URL" title="Вернуться в меню рабочих сервисов"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg> Сервисы</button>
     </div>
 </div>
 
@@ -307,6 +311,7 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
     <div class="top-in">
         <div class="brand"><svg><use href="#drop"/></svg><span><b id="appTitle">Распределение</b><small>общее → колонки → потребители</small></span></div>
         <div class="who">
+            <button type="button" class="btn svc" onclick="location.href=MENU_URL" title="Вернуться в меню рабочих сервисов"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg> Сервисы</button>
             <span class="conn" id="conn">…</span>
             <span class="badge hidden" id="roleBadge"></span>
             <button class="linkbtn hidden" id="logoutBtn">Выйти</button>
@@ -389,6 +394,7 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbzgas1Yeek2Mr6D4Q0l-xFZk8jb-ghh_2hxs5ypBRAp651fEHd_RHyZEC9pMLBpKsc/exec';
 const API_TIMEOUT = 25000;
+const MENU_URL = 'https://energo380.github.io/menu/';   // меню рабочих сервисов
 const DRAFT_KEY = 'voda_draft_v2';
 const LOCAL_LOG_KEY = 'voda_local_journal_v1';
 const PWD_KEY = 'voda_pwd_v1';
