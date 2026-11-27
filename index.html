@@ -1,5 +1,5 @@
 <!-- ============================================================
-     INDEX.HTML — Voda, версия 1.2.1 (кнопка «Сервисы» — в меню рабочих сервисов)
+     INDEX.HTML — Voda, версия 1.2.2 (в надписях вместо «Google Таблица» — «сервер»)
      Нужен скрипт таблицы apps-script/Code.gs версии 1.2
      Изменения относительно 1.1:
        1. Шильдик «Отчёт за: месяц год» вверху листа
@@ -13,7 +13,7 @@
        2. Колонки «Общее» и №… одной ширины, нераспределяемая колонка
           выглядит как остальные, без надписей «не распр.»
        3. Оформление «вода»: волны, капли, пузырьки
-     Пока API_URL ниже пустой, сайт работает без Google Таблицы
+     Пока API_URL ниже пустой, сайт работает без сервера
      (данные в этом браузере).
      ============================================================ -->
 <!DOCTYPE html>
@@ -826,10 +826,10 @@ function apiGet(params) {
             resolve(data);
         };
         window[cb] = data => finish(data);
-        const timer = setTimeout(() => finish({ success: false, transport: true, error: 'Таблица долго не отвечает' }), API_TIMEOUT);
+        const timer = setTimeout(() => finish({ success: false, transport: true, error: 'Сервер долго не отвечает' }), API_TIMEOUT);
         script = document.createElement('script');
         script.src = url.toString();
-        script.onerror = () => finish({ success: false, transport: true, error: 'Нет связи с таблицей' });
+        script.onerror = () => finish({ success: false, transport: true, error: 'Нет связи с сервером' });
         document.head.appendChild(script);
     });
 }
@@ -880,7 +880,7 @@ async function boot() {
     if (!online) {
         $('appView').classList.remove('hidden');
         role = 'admin'; applyRole();
-        setConn('off', 'Без Google Таблицы — данные в этом браузере');
+        setConn('off', 'Без сервера — данные в этом браузере');
         buildTable();
         const d = readDraft();
         setState(d ? d.state : demoState(), d ? d.dirty : false);
@@ -894,8 +894,8 @@ async function boot() {
     $('loginView').classList.add('hidden');
     buildTable();
     if (!res || !res.success) {
-        setConn('bad', 'Нет связи с таблицей');
-        toast((res && res.error) || 'Нет связи с таблицей', true);
+        setConn('bad', 'Нет связи с сервером');
+        toast((res && res.error) || 'Нет связи с сервером', true);
         const d = readDraft();
         setState(d ? d.state : demoState(), d ? d.dirty : false);
         return;
@@ -909,7 +909,7 @@ function applyServer(res) {
     settings = res.settings;
     if (!settings.cols || !settings.cols.length) settings = JSON.parse(JSON.stringify(VODA_DEFAULTS));
     journal = res.journal || [];
-    setConn('on', 'Связано с Google Таблицей');
+    setConn('on', 'Связано с сервером');
     buildTable();
     const d = readDraft();
     if (d && d.dirty && d.state) {
@@ -970,10 +970,10 @@ async function save(asNew) {
         state.id = r.id; state.token = r.token || ''; dirty = false;
         if (role === 'admin') journal = r.journal || journal;
         render(); saveDraft();
-        setConn('on', 'Связано с Google Таблицей');
-        toast('Сохранено в Google Таблицу');
+        setConn('on', 'Связано с сервером');
+        toast('Сохранено');
     } else {
-        setConn(r && r.transport ? 'bad' : 'on', r && r.transport ? 'Нет связи с таблицей' : 'Связано с Google Таблицей');
+        setConn(r && r.transport ? 'bad' : 'on', r && r.transport ? 'Нет связи с сервером' : 'Связано с сервером');
         render();
         toast((r && r.error) || 'Не удалось сохранить', true);
         if (r && r.needPassword) showLogin(r.error);
