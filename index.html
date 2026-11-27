@@ -17,6 +17,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Вода — распределение</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0b5689">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -213,12 +217,20 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 }
 
 /* ---------- печать ---------- */
-@page { size: A4 portrait; margin: 12mm 10mm; }
+/* Поля задаём сами (padding листа), а не через @page: так отступы есть
+   при любой настройке «Поля» в окне печати браузера, даже «Нет». */
+@page { size: A4 portrait; margin: 0; }
 @media print {
+    .paper { width: 100%; padding: 12mm 12mm 12mm 15mm !important; -webkit-box-decoration-break: clone; box-decoration-break: clone; overflow: visible !important; }
+    .doc-title { font-size: 16pt; }
+    .t thead { display: table-header-group; }
+    .t tfoot { display: table-row-group; }   /* итоги — только в конце, не на каждой странице */
+    .t tr { break-inside: avoid; page-break-inside: avoid; }
+    .t td.desc { overflow: hidden; text-overflow: ellipsis; }
     html, body { background: #fff !important; color: #000; }
     .noprint, .top, .modal-bg, .toast, #loginView, .bubbles { display: none !important; }
     .wrap { margin: 0; padding: 0; max-width: none; }
-    .paper { box-shadow: none; border-radius: 0; padding: 0; }
+    .paper { box-shadow: none; border-radius: 0; }
     .paper::before, .doc-head svg { display: none; }
     .doc-title, .notes-h { color: #000; }
     .in { display: none !important; }
