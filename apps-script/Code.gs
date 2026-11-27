@@ -1,5 +1,5 @@
 /* ============================================================
- * Code.gs — скрипт Google Таблицы для сайта «Voda» (версия 1.0)
+ * Code.gs — скрипт Google Таблицы для сайта «Voda» (версия 1.1)
  *
  * КАК УСТАНОВИТЬ (один раз):
  *  1. Создайте пустую Google Таблицу.
@@ -8,6 +8,10 @@
  *  3. Вверху выберите функцию setup и нажмите «Выполнить».
  *     Google попросит разрешение — разрешите (это ваш же скрипт).
  *     Появятся листы «Таблица», «Настройки», «Журнал».
+ *     Внизу всплывёт сообщение с двумя паролями (их же видно и
+ *     можно поменять на листе «Настройки», клетки B5 и B6):
+ *       пользователь — создаёт и сохраняет расчёты;
+ *       администратор — ещё и журнал: смотрит, открывает, удаляет.
  *  4. Начать развёртывание → Новое развёртывание → тип «Веб-приложение».
  *     Выполнять как: «Я». Доступ: «Все».
  *     Скопируйте адрес вида https://script.google.com/macros/s/…/exec
@@ -22,6 +26,7 @@
  * в журнал, перестройка листа после правки «Настроек».
  * ============================================================ */
 
+var VERSION = '1.1';
 var SH_TAB = 'Таблица', SH_SET = 'Настройки', SH_LOG = 'Журнал';
 var FIRST_ROW = 9;          // первая строка данных на листе «Таблица»
 var C_NO = 1, C_DESC = 2, C_TOT = 3, C_COL1 = 4;   // столбцы A, B, C, D…
@@ -52,7 +57,7 @@ function onOpen() {
 function setup() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var set = ss.getSheetByName(SH_SET);
-    if (!set) { set = ss.insertSheet(SH_SET); buildSettingsSheet(set); }
+    if (!set) { set = ss.insertSheet(SH_SET); buildSettingsSheet(set); } else migrateSettings(set);
     var log = ss.getSheetByName(SH_LOG);
     if (!log) { log = ss.insertSheet(SH_LOG); buildLogSheet(log); }
     var tab = ss.getSheetByName(SH_TAB);
@@ -72,16 +77,22 @@ function setup() {
         if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
     });
     try { onOpen(); } catch (e) { }
-    try { ss.toast('Готово. Листы созданы, таблица посчитана.', '💧 Вода', 6); } catch (e) { }
+    var pw = set.getRange('B5:B6').getValues();
+    try {
+        ss.toast('Пароль пользователя: ' + pw[0][0] + ', администратора: ' + pw[1][0] +
+            '. Поменять — на листе «Настройки».', '💧 Вода: листы созданы', 15);
+    } catch (e) { }
 }
 
 function buildSettingsSheet(sh) {
     var D = VODA_DEFAULTS;
     sh.clear();
     sh.getRange('A1').setValue('НАСТРОЙКИ').setFontWeight('bold').setFontSize(14);
-    sh.getRange('A3:A5').setValues([['Название таблицы'], ['Знаков после запятой (0–3)'], ['Пароль для сайта (пусто — без пароля)']]);
-    sh.getRange('B3:B5').setValues([[D.title], [D.decimals], ['']]).setBackground(COLOR.input);
-    sh.getRange('B5').setNumberFormat('@');
+    sh.getRange('A3:A6').setValues([['Название таблицы'], ['Знаков после запятой (0–3)'], [LBL_USER], [LBL_ADMIN]]);
+    sh.getRange('B5:B6').setNumberFormat('@');
+    sh.getRange('B3:B6').setValues([[D.title], [D.decimals], [randomPwd()], [randomPwd()]]).setBackground(COLOR.input);
+    sh.getRange('C5').setValue('создаёт и сохраняет расчёты').setFontColor(COLOR.auto);
+    sh.getRange('C6').setValue('+ журнал: смотрит, открывает, удаляет').setFontColor(COLOR.auto);
     sh.getRange('E3:E4').setValues([['Сумма весов строк:'], ['Сумма долей колонок:']]).setHorizontalAlignment('right');
     sh.getRange('F3').setFormula('=SUM(C9:C300)'); sh.getRange('F4').setFormula('=SUM(F9:F60)');
 
@@ -110,12 +121,28 @@ function buildSettingsSheet(sh) {
     sh.setFrozenRows(8);
 }
 
+var LBL_USER = 'Пароль пользователя', LBL_ADMIN = 'Пароль администратора';
+
+function randomPwd() { return String(100000 + Math.floor(Math.random() * 900000)); }
+
+/** Настройки от версии 1.0 (один пароль) → два пароля. */
+function migrateSettings(sh) {
+    if (String(sh.getRange('A6').getValue()).trim()) return;
+    sh.getRange('A5').setValue(LBL_USER);
+    sh.getRange('A6').setValue(LBL_ADMIN);
+    sh.getRange('B6').setNumberFormat('@').setValue(randomPwd()).setBackground(COLOR.input);
+    if (!String(sh.getRange('B5').getValue()).trim()) sh.getRange('B5').setNumberFormat('@').setValue(randomPwd());
+    sh.getRange('C5').setValue('создаёт и сохраняет расчёты').setFontColor(COLOR.auto);
+    sh.getRange('C6').setValue('+ журнал: смотрит, открывает, удаляет').setFontColor(COLOR.auto);
+}
+
 function buildLogSheet(sh) {
     sh.clear();
-    sh.getRange(1, 1, 1, 8).setValues([['ID', 'Дата расчёта', 'Сохранено', 'Заголовок', 'Общее', 'Колонки', 'Выводы', 'Данные (не править)']])
+    sh.getRange(1, 1, 1, 9).setValues([['ID', 'Дата расчёта', 'Сохранено', 'Заголовок', 'Общее', 'Колонки', 'Выводы', 'Данные (не править)', 'Ключ']])
         .setFontWeight('bold').setBackground(COLOR.head).setFontColor(COLOR.headText);
     sh.setFrozenRows(1);
     sh.setColumnWidth(1, 150); sh.setColumnWidth(4, 260); sh.setColumnWidth(6, 320); sh.setColumnWidth(7, 260); sh.setColumnWidth(8, 120);
+    sh.hideColumns(9);
 }
 
 // ============================================================
@@ -125,11 +152,12 @@ function buildLogSheet(sh) {
 function readSettings() {
     var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_SET);
     if (!sh) return JSON.parse(JSON.stringify(VODA_DEFAULTS));
-    var top = sh.getRange('B3:B5').getValues();
+    var top = sh.getRange('B3:B6').getValues();
     var s = {
         title: String(top[0][0] || VODA_DEFAULTS.title),
         decimals: Math.max(0, Math.min(3, parseInt(top[1][0], 10) || 0)),
-        password: String(top[2][0] || '').trim(),
+        userPassword: String(top[2][0] || '').trim(),
+        adminPassword: String(top[3][0] || '').trim(),
         rows: [], cols: []
     };
     var rv = sh.getRange(9, 1, 292, 3).getValues();
@@ -202,8 +230,8 @@ function writeTable(sh, settings, state) {
     if (sh.getMaxColumns() < W) sh.insertColumnsAfter(sh.getMaxColumns(), W - sh.getMaxColumns());
     if (sh.getMaxRows() < L.rNotes + 3) sh.insertRowsAfter(sh.getMaxRows(), L.rNotes + 3 - sh.getMaxRows());
 
-    sh.setColumnWidth(C_NO, 45); sh.setColumnWidth(C_DESC, 240); sh.setColumnWidth(C_TOT, 95);
-    for (var j = 0; j < L.m; j++) sh.setColumnWidth(C_COL1 + j, 85);
+    sh.setColumnWidth(C_NO, 45); sh.setColumnWidth(C_DESC, 240);
+    for (var j = 0; j <= L.m; j++) sh.setColumnWidth(C_TOT + j, 90);   // «Общее» и все колонки одной ширины
 
     // заголовок, три строки описания, дата
     sh.getRange(1, 1, 1, W).merge().setValue(settings.title).setFontSize(14).setFontWeight('bold');
@@ -275,22 +303,15 @@ function writeTable(sh, settings, state) {
 
 /** Пишет только посчитанные числа (быстро, для onEdit). */
 function renderValues(sh, L, settings, res) {
-    var vals = [], bgs = [];
+    var vals = [];
     for (var i = 0; i < L.n; i++) {
-        var row = [res.rowTot[i]], bg = ['#ffffff'];
-        for (var j = 0; j < L.m; j++) {
-            var nd = res.cols[j].nd;
-            row.push(nd ? '' : res.cells[i][j]);
-            bg.push(nd ? '#eeeeee' : '#ffffff');
-        }
-        vals.push(row); bgs.push(bg);
+        var row = [res.rowTot[i]];
+        for (var j = 0; j < L.m; j++) row.push(res.cols[j].nd ? '' : res.cells[i][j]);
+        vals.push(row);
     }
-    if (L.n) {
-        var rg = sh.getRange(FIRST_ROW, C_TOT, L.n, L.m + 1);
-        rg.setValues(vals); rg.setBackgrounds(bgs);
-    }
+    if (L.n) sh.getRange(FIRST_ROW, C_TOT, L.n, L.m + 1).setValues(vals);
     var sumRow = [res.distributed];
-    for (j = 0; j < L.m; j++) sumRow.push(res.cols[j].nd ? 'не распр.' : res.cols[j].cellSum);
+    for (j = 0; j < L.m; j++) sumRow.push(res.cols[j].nd ? '' : res.cols[j].cellSum);
     sh.getRange(L.rSum, C_TOT, 1, L.m + 1).setValues([sumRow]);
 
     var totRow = [res.total], totColors = [res.totalAuto ? COLOR.auto : '#000000'], totStyle = [res.totalAuto ? 'italic' : 'normal'];
@@ -348,7 +369,7 @@ function menuSaveToLog() {
     var state = readState(sh, L), settings = readSettings();
     var res = voda_calc(settings, state);
     if (!res.ok) { SpreadsheetApp.getUi().alert('Не сохранено: ' + res.errors.join(' ')); return; }
-    state.id = logSave(state, settings, res);
+    state.id = logSave(state, settings, res, true).id;
     L.id = state.id; sh.getRange(FIRST_ROW - 1, 1).setNote(JSON.stringify(L));
     SpreadsheetApp.getActiveSpreadsheet().toast('Сохранено в Журнал', '💧 Вода', 4);
 }
@@ -363,29 +384,37 @@ function logSheet() {
     return sh;
 }
 
-function logSave(state, settings, res) {
+/** Сохраняет расчёт. Обновить запись можно, только если isAdmin или знаешь её ключ. */
+function logSave(state, settings, res, isAdmin) {
     var sh = logSheet();
     var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
     var id = state.id || ('R' + Utilities.formatDate(new Date(), tz, 'yyyyMMdd-HHmmss') + '-' + Math.floor(Math.random() * 1000));
     var clean = cleanState(state); clean.id = id;
+    var token = String(state.token || '');
     var colsText = res.cols.map(function (c) {
-        return c.name + ': ' + voda_format(c.value, res.decimals) + (c.nd ? ' (не распр.)' : '');
+        return c.name + ': ' + voda_format(c.value, res.decimals) + (c.nd ? ' (не распределялась)' : '');
     }).join('; ');
     var row = [id, clean.date, Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm'),
         (clean.lines || []).filter(String).join(' / '), res.total, colsText,
         (clean.notes || []).filter(String).join(' / '), JSON.stringify(clean)];
     var last = sh.getLastRow(), at = 0;
-    if (last > 1) {
-        var ids = sh.getRange(2, 1, last - 1, 1).getValues();
-        for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === id) { at = i + 2; break; }
+    if (last > 1 && state.id) {
+        var ids = sh.getRange(2, 1, last - 1, 9).getValues();
+        for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === id) {
+            var key = String(ids[i][8] || '');
+            if (!isAdmin && (!key || key !== token)) throw new Error('Эту запись журнала может изменить только администратор. Сохраните как новый расчёт.');
+            at = i + 2; token = key; break;
+        }
     }
+    if (!token) token = Utilities.getUuid();
+    row.push(token);
     if (!at) { sh.insertRowBefore(2); at = 2; }   // новые — сверху
     var rg = sh.getRange(at, 1, 1, row.length);
     rg.setFontWeight('normal').setBackground(null).setFontColor('#000000');
     sh.getRange(at, 1, 1, 3).setNumberFormat('@');
     sh.getRange(at, 6, 1, 3).setNumberFormat('@');
     rg.setValues([row]);
-    return id;
+    return { id: id, token: token };
 }
 
 function logList() {
@@ -450,6 +479,7 @@ function doPost(e) {
             try { body = JSON.parse(e.postData.contents); } catch (x) { body = {}; }
         }
         if (!body.action && e && e.parameter && e.parameter.payload) body = JSON.parse(e.parameter.payload);
+        if (!body.action && e && e.parameter && e.parameter.action) body = e.parameter;
     } catch (err) { body = {}; }
     var out;
     try { out = handle(body.action, body); } catch (err) { out = { success: false, error: String(err && err.message || err) }; }
@@ -464,39 +494,56 @@ function reply(obj, callback) {
     return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
+/** Роль по паролю: 'admin', 'user' или '' (не пустили). */
+function roleFor(settings, pw) {
+    pw = String(pw || '');
+    if (!settings.adminPassword && !settings.userPassword) return 'admin';   // пароли не заданы — открыто всем
+    if (settings.adminPassword && pw === settings.adminPassword) return 'admin';
+    if (settings.userPassword && pw === settings.userPassword) return 'user';
+    return '';
+}
+
 function handle(action, p) {
     var settings = readSettings();
-    if (action === 'ping') return { success: true, version: '1.0' };
-    if (settings.password && String(p.password || '') !== settings.password) {
-        return { success: false, needPassword: true, error: p.password ? 'Неверный пароль' : 'Нужен пароль' };
-    }
+    if (action === 'ping') return { success: true, version: VERSION };
+    var role = roleFor(settings, p.password);
+    if (!role) return { success: false, needPassword: true, error: p.password ? 'Неверный пароль' : 'Нужен пароль' };
+    var isAdmin = role === 'admin';
+    var denied = { success: false, error: 'Это может только администратор' };
+
     if (action === 'load') {
-        var sh = tabSheet();
-        return {
-            success: true, settings: publicSettings(settings), needPassword: !!settings.password,
-            current: readState(sh, getLayout(sh)), journal: logList()
-        };
+        var out = { success: true, role: role, settings: publicSettings(settings), journal: [] };
+        if (isAdmin) {
+            var sh = tabSheet();
+            out.current = readState(sh, getLayout(sh));
+            out.journal = logList();
+        }
+        return out;
     }
+    if (action === 'journal') return isAdmin ? { success: true, journal: logList() } : denied;
     if (action === 'get') {
+        if (!isAdmin) return denied;
         var item = logGet(String(p.id || ''));
         return item ? { success: true, state: item } : { success: false, error: 'Запись не найдена' };
     }
     if (action === 'delete') {
+        if (!isAdmin) return denied;
         var lockD = LockService.getDocumentLock(); lockD.waitLock(20000);
         try { return { success: logDelete(String(p.id || '')), journal: logList() }; } finally { lockD.releaseLock(); }
     }
     if (action === 'save') {
-        var state = typeof p.state === 'string' ? JSON.parse(p.state) : p.state;
-        state = cleanState(state);
+        var raw = typeof p.state === 'string' ? JSON.parse(p.state) : (p.state || {});
+        var state = cleanState(raw);
+        state.token = String(raw.token || '');
         var res = voda_calc(settings, state);
         if (!res.ok) return { success: false, error: 'Не сохранено: ' + res.errors.join(' ') };
         var lock = LockService.getDocumentLock(); lock.waitLock(20000);
         try {
-            if (p.journal !== false && p.journal !== 'false') state.id = logSave(state, settings, res);
-            var tab = tabSheet();
-            writeTable(tab, settings, state);
+            var saved = logSave(state, settings, res, isAdmin);
+            state.id = saved.id;
+            writeTable(tabSheet(), settings, state);
             SpreadsheetApp.flush();
-            return { success: true, id: state.id, journal: logList() };
+            return { success: true, id: saved.id, token: saved.token, journal: isAdmin ? logList() : [] };
         } finally { lock.releaseLock(); }
     }
     return { success: false, error: 'Неизвестное действие: ' + action };
