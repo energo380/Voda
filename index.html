@@ -1,7 +1,12 @@
 <!-- ============================================================
-     INDEX.HTML — Voda, версия 1.1
-     Нужен скрипт таблицы apps-script/Code.gs версии 1.1
-     Изменения относительно 1.0:
+     INDEX.HTML — Voda, версия 1.2
+     Нужен скрипт таблицы apps-script/Code.gs версии 1.2
+     Изменения относительно 1.1:
+       1. Шильдик «Отчёт за: месяц год» вверху листа
+       2. Постоянная надпись под таблицей — берётся из листа «Настройки»
+       3. №5 по умолчанию распределяется, как все (галочки сняты)
+       4. Вход — только пароль, без пояснений
+     Изменения 1.1 относительно 1.0:
        1. Два пароля из листа «Настройки»: пользователь создаёт и
           сохраняет расчёты; администратор ещё смотрит журнал,
           открывает и удаляет записи
@@ -103,7 +108,21 @@ input { font: inherit; color: inherit; }
 .paper::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: linear-gradient(90deg, var(--water), var(--aqua), var(--water)); }
 .doc-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; }
 .doc-head svg { width: 26px; height: 32px; flex: none; margin-top: 2px; }
-.doc-title { font-size: 22px; font-weight: 800; line-height: 1.2; color: var(--pipe); }
+.doc-title { font-size: 22px; font-weight: 800; line-height: 1.2; color: var(--pipe); flex: 1; min-width: 0; }
+/* шильдик «Отчёт за» — как латунная табличка на водомерном узле, только в цветах воды */
+.plaque { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 6px 8px 6px 14px; border-radius: 12px;
+    background: linear-gradient(180deg, #1590d0, #0b5a8f); color: #fff; font-weight: 700; font-size: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px rgba(11,90,143,.3); position: relative; }
+.plaque::before, .plaque::after { content: ''; position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff, #9fd6f0); box-shadow: 0 0 0 1px rgba(0,40,70,.35); }
+.plaque::before { left: 5px; } .plaque::after { right: -9px; display: none; }
+.plaque select { appearance: none; -webkit-appearance: none; border: 0; border-radius: 8px; padding: 6px 26px 6px 10px; font: inherit; font-weight: 800;
+    color: var(--pipe); background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%230b5a8f' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 9px center / 10px 6px;
+    cursor: pointer; min-height: 34px; }
+.plaque select:focus-visible { outline: 3px solid #ffd166; outline-offset: 1px; }
+.plaque-pv { font-weight: 800; font-size: 13pt; }
+.perm { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: #34526a; line-height: 1.5; white-space: pre-wrap; }
+.perm:empty { display: none; }
 .lines { display: grid; gap: 5px; margin-bottom: 10px; }
 .line-in { width: 100%; border: 1.5px dashed var(--in-line); background: var(--in-bg); border-radius: 10px; padding: 8px 12px; font-size: 15px; outline: none; color: var(--ink); }
 .line-in:focus { border-style: solid; border-color: var(--water); background: #fff; }
@@ -171,7 +190,8 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 .j-list { display: grid; gap: 8px; max-height: 62vh; overflow-y: auto; }
 .j-item { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 10px 12px; }
 .j-item.cur { border-color: var(--aqua); background: rgba(54,194,240,.14); }
-.j-item .d { font-weight: 800; min-width: 92px; }
+.j-item .d { font-weight: 800; min-width: 120px; }
+.j-item .d small { display: block; font-weight: 500; font-size: 11.5px; color: #a9d9ee; }
 .j-item .jt { flex: 1; min-width: 0; font-size: 13.5px; color: #cfeefc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .j-item .s { font-size: 14px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .j-item .btn { padding: 6px 12px; font-size: 13px; min-height: 34px; }
@@ -205,6 +225,8 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 .toast.bad { background: #6a1d15; }
 
 @media (max-width: 700px) {
+    .doc-head { flex-wrap: wrap; }
+    .plaque { order: 3; width: 100%; justify-content: center; }
     .top { position: static; }
     .paper { padding: 18px 12px 22px; border-radius: 14px; }
     .rec { width: 100%; margin-left: 0; }
@@ -223,6 +245,9 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 @media print {
     .paper { width: 100%; padding: 12mm 12mm 12mm 15mm !important; -webkit-box-decoration-break: clone; box-decoration-break: clone; overflow: visible !important; }
     .doc-title { font-size: 16pt; }
+    .doc-head { align-items: baseline; }
+    .plaque-pv { color: #000; }
+    .perm { color: #000; border-top: 1px solid #000; font-size: 11px; margin-top: 12px; padding-top: 6px; }
     .t thead { display: table-header-group; }
     .t tfoot { display: table-row-group; }   /* итоги — только в конце, не на каждой странице */
     .t tr { break-inside: avoid; page-break-inside: avoid; }
@@ -266,7 +291,6 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
     <div class="login">
         <div class="ripple"><i></i><i></i><i></i><svg><use href="#drop"/></svg></div>
         <h1>Вода</h1>
-        <p>Распределение по потребителям</p>
         <div class="box">
             <div class="pass-row">
                 <input type="password" id="pwd" placeholder="Пароль" autocomplete="current-password">
@@ -274,7 +298,6 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
             </div>
             <div class="err" id="pwdErr"></div>
             <button class="btn primary" id="pwdBtn">Войти</button>
-            <div class="roles">Пароль пользователя — создать и сохранить расчёт.<br>Пароль администратора — ещё журнал расчётов.</div>
         </div>
     </div>
 </div>
@@ -311,7 +334,12 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 
 <main class="wrap">
     <div class="paper">
-        <div class="doc-head"><svg><use href="#drop"/></svg><div class="doc-title" id="docTitle"></div></div>
+        <div class="doc-head"><svg><use href="#drop"/></svg><div class="doc-title" id="docTitle"></div>
+            <div class="plaque in" title="За какой месяц отчёт">Отчёт за
+                <select id="mSel" aria-label="Месяц отчёта"></select><select id="ySel" aria-label="Год отчёта"></select>
+            </div>
+            <span class="pv plaque-pv" id="plaquePv"></span>
+        </div>
         <div class="lines">
             <input class="line-in in" data-line="0" maxlength="500" placeholder="Строка 1 — что это за таблица (например: «Распределение воды за ноябрь»)">
             <span class="pv block" data-pv-line="0"></span>
@@ -340,6 +368,7 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
             <input class="line-in in" data-note="2" maxlength="500" placeholder="Вывод 3">
             <span class="pv block" data-pv-note="2"></span>
         </div>
+        <div class="perm" id="perm"></div>
     </div>
 </main>
 </div>
@@ -360,7 +389,7 @@ table.t { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbzgas1Yeek2Mr6D4Q0l-xFZk8jb-ghh_2hxs5ypBRAp651fEHd_RHyZEC9pMLBpKsc/exec';
 const API_TIMEOUT = 25000;
-const DRAFT_KEY = 'voda_draft_v1';
+const DRAFT_KEY = 'voda_draft_v2';
 const LOCAL_LOG_KEY = 'voda_local_journal_v1';
 const PWD_KEY = 'voda_pwd_v1';
 
@@ -511,10 +540,18 @@ function voda_format(x, d) {
     return (neg ? '−' : '') + int + (p[1] ? ',' + p[1] : '');
 }
 
+var VODA_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+/** '2026-11' → 'Ноябрь 2026' */
+function voda_monthLabel(ym) {
+    var m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+    return m ? VODA_MONTHS[+m[2] - 1] + ' ' + m[1] : '';
+}
+
 // Значения по умолчанию — взяты из ваших трёх примеров (30 000, 35 000, 10 000)
 var VODA_DEFAULTS = {
     title: 'Распределение по потребителям',
     decimals: 0,
+    footer: [],
     rows: [
         { no: '1', desc: '', w: 22.6101 }, { no: '2', desc: '', w: 0 }, { no: '3', desc: '', w: 0 },
         { no: '4', desc: '', w: 2.2597 }, { no: '5', desc: '', w: 40.2588 }, { no: '6', desc: '', w: 3.5124 },
@@ -526,9 +563,9 @@ var VODA_DEFAULTS = {
         { no: '23', desc: '', w: 1.5719 }, { no: '24', desc: '', w: 1.3929 }, { no: '25', desc: '', w: 0.0374 }
     ],
     cols: [
-        { name: '№1', share: 17.8824, nd: false }, { name: '№2', share: 17.3028, nd: false },
-        { name: '№4', share: 19.9324, nd: false }, { name: '№3', share: 24.8057, nd: false },
-        { name: '№6', share: 20.0767, nd: false }, { name: '№5', share: 0, nd: true }
+        { name: '№1', share: 17.8533, nd: false }, { name: '№2', share: 17.2747, nd: false },
+        { name: '№4', share: 19.9000, nd: false }, { name: '№3', share: 24.7653, nd: false },
+        { name: '№6', share: 20.0440, nd: false }, { name: '№5', share: 0.1627, nd: false }
     ]
 };
 // ==== CALC END ====
@@ -551,7 +588,7 @@ function todayISO() {
     return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
 }
 function blankState() {
-    return { id: '', token: '', date: todayISO(), lines: ['', '', ''], notes: ['', '', ''], total: null, cols: {} };
+    return { id: '', token: '', date: todayISO(), month: todayISO().slice(0, 7), lines: ['', '', ''], notes: ['', '', ''], total: null, cols: {} };
 }
 function isoToRu(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : (iso || ''); }
 function ruToIso(ru) {
@@ -630,6 +667,21 @@ function fillInputs() {
     document.querySelectorAll('[data-line]').forEach(el => el.value = state.lines[+el.dataset.line] || '');
     document.querySelectorAll('[data-note]').forEach(el => el.value = state.notes[+el.dataset.note] || '');
     $('dateTxt').value = isoToRu(state.date);
+    fillMonth();
+}
+
+// ---------- шильдик «Отчёт за» ----------
+function fillMonth() {
+    const ym = /^\d{4}-\d{2}$/.test(state.month || '') ? state.month : todayISO().slice(0, 7);
+    const y = +ym.slice(0, 4), m = +ym.slice(5, 7), now = new Date().getFullYear();
+    $('mSel').innerHTML = VODA_MONTHS.map((n, i) => '<option value="' + (i + 1) + '"' + (i + 1 === m ? ' selected' : '') + '>' + n + '</option>').join('');
+    let ys = [];
+    for (let k = Math.min(2020, y); k <= Math.max(now + 1, y); k++) ys.push(k);
+    $('ySel').innerHTML = ys.map(k => '<option' + (k === y ? ' selected' : '') + '>' + k + '</option>').join('');
+}
+function onMonth() {
+    state.month = $('ySel').value + '-' + String($('mSel').value).padStart(2, '0');
+    changed();
 }
 
 function render() {
@@ -683,9 +735,11 @@ function render() {
     document.querySelectorAll('[data-pv-note]').forEach(el => { const v = state.notes[+el.dataset.pvNote] || ''; el.textContent = v; el.classList.toggle('empty', !v); if (v) anyNote = true; });
     $('notesH').classList.toggle('none', !anyNote);
     $('docDate').textContent = isoToRu(state.date) || '—';
+    $('plaquePv').textContent = state.month ? 'Отчёт за ' + voda_monthLabel(state.month).toLowerCase() : '';
+    $('perm').textContent = (settings.footer || []).join('\n');
     $('docTitle').textContent = settings.title || '';
     $('appTitle').textContent = settings.title || 'Распределение';
-    document.title = (state.lines[0] || settings.title || 'Вода') + (state.date ? ' — ' + isoToRu(state.date) : '');
+    document.title = (settings.title || 'Вода') + (state.month ? ' — ' + voda_monthLabel(state.month) : '');
     $('saveBtn').disabled = !res.ok;
     $('saveBtn').title = res.ok ? '' : 'Сначала исправьте ошибку в таблице';
     renderRec();
@@ -693,7 +747,7 @@ function render() {
 
 function renderRec() {
     const r = $('rec');
-    let t = state.id ? 'Сохранён в журнал · расчёт от <b>' + esc(isoToRu(state.date)) + '</b>' : 'Новый расчёт, ещё не сохранён';
+    let t = state.id ? 'Сохранён в журнал · отчёт за <b>' + esc(voda_monthLabel(state.month).toLowerCase() || isoToRu(state.date)) + '</b>' : 'Новый расчёт, ещё не сохранён';
     if (dirty) t += ' · <span class="dirty">есть несохранённые изменения</span>';
     r.innerHTML = t;
     $('saveNewBtn').classList.toggle('hidden', !state.id);
@@ -809,7 +863,7 @@ function setConn(kind, text) { const c = $('conn'); c.className = 'conn ' + kind
 function localLog() { try { return JSON.parse(localStorage.getItem(LOCAL_LOG_KEY) || '[]'); } catch (e) { return []; } }
 function localLogWrite(arr) { try { localStorage.setItem(LOCAL_LOG_KEY, JSON.stringify(arr)); } catch (e) { } }
 function localList() {
-    return localLog().map(x => ({ id: x.id, date: x.date, saved: x.saved, title: (x.lines || []).filter(Boolean).join(' / '), total: x.totalCalc }));
+    return localLog().map(x => ({ id: x.id, date: x.date, month: x.month, saved: x.saved, title: (x.lines || []).filter(Boolean).join(' / '), total: x.totalCalc }));
 }
 
 // ============================================================
@@ -861,7 +915,7 @@ function applyServer(res) {
 
 function demoState() {
     const s = blankState();
-    s.total = 30000; s.cols = { '№5': { value: 43 } };
+    s.total = 30000;
     return s;
 }
 
@@ -948,9 +1002,9 @@ async function openJournal() {
 function renderJournal() {
     const box = $('jList');
     if (!journal.length) { box.innerHTML = '<div class="empty">Пока нет сохранённых расчётов. Нажмите «Сохранить».</div>'; return; }
-    const arr = journal.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const arr = journal.slice().sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')) || String(b.date).localeCompare(String(a.date)));
     box.innerHTML = arr.map(x => '<div class="j-item' + (x.id === state.id ? ' cur' : '') + '">' +
-        '<span class="d">' + esc(isoToRu(x.date)) + '</span>' +
+        '<span class="d">' + esc(voda_monthLabel(x.month) || '—') + '<small>' + esc(isoToRu(x.date)) + '</small></span>' +
         '<span class="jt" title="' + esc(x.title) + '">' + (esc(x.title) || '<i>без заголовка</i>') + '</span>' +
         '<span class="s">' + esc(fmt(x.total)) + '</span>' +
         '<button class="btn" data-open="' + esc(x.id) + '">Открыть</button>' +
@@ -1017,6 +1071,8 @@ $('journalBtn').onclick = openJournal;
 $('newBtn').onclick = newCalc;
 $('clearBtn').onclick = clearCols;
 $('pwdBtn').onclick = doLogin;
+$('mSel').addEventListener('change', onMonth);
+$('ySel').addEventListener('change', onMonth);
 $('logoutBtn').onclick = logout;
 $('passEye').onclick = () => { const i = $('pwd'), show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('passEye').setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль'); i.focus(); };
 (function bubbles() {

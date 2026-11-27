@@ -1,5 +1,5 @@
 /* ============================================================
- * Code.gs — скрипт Google Таблицы для сайта «Voda» (версия 1.1)
+ * Code.gs — скрипт Google Таблицы для сайта «Voda» (версия 1.2)
  *
  * КАК УСТАНОВИТЬ (один раз):
  *  1. Создайте пустую Google Таблицу.
@@ -26,7 +26,7 @@
  * в журнал, перестройка листа после правки «Настроек».
  * ============================================================ */
 
-var VERSION = '1.1';
+var VERSION = '1.2';
 var SH_TAB = 'Таблица', SH_SET = 'Настройки', SH_LOG = 'Журнал';
 var FIRST_ROW = 9;          // первая строка данных на листе «Таблица»
 var C_NO = 1, C_DESC = 2, C_TOT = 3, C_COL1 = 4;   // столбцы A, B, C, D…
@@ -57,17 +57,20 @@ function onOpen() {
 function setup() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var set = ss.getSheetByName(SH_SET);
-    if (!set) { set = ss.insertSheet(SH_SET); buildSettingsSheet(set); } else migrateSettings(set);
+    var mig = {};
+    if (!set) { set = ss.insertSheet(SH_SET); buildSettingsSheet(set); } else mig = migrateSettings(set);
     var log = ss.getSheetByName(SH_LOG);
     if (!log) { log = ss.insertSheet(SH_LOG); buildLogSheet(log); }
     var tab = ss.getSheetByName(SH_TAB);
     var state = null;
     if (tab) { var L = getLayout(tab); if (L) state = readState(tab, L); }
     else tab = ss.insertSheet(SH_TAB, 0);
+    if (state && mig.nd5 && state.cols['№5']) state.cols['№5'].nd = false;
     if (!state) state = {
         lines: ['', '', ''], notes: ['', '', ''],
         date: Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd'),
-        total: 30000, cols: { '№5': { value: 43 } }
+        month: Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM'),
+        total: 30000, cols: {}
     };
     writeTable(tab, readSettings(), state);
     ss.setActiveSheet(tab);
@@ -116,6 +119,7 @@ function buildSettingsSheet(sh) {
     });
     sh.setColumnWidth(1, 60); sh.setColumnWidth(2, 300); sh.setColumnWidth(3, 80);
     sh.setColumnWidth(4, 30); sh.setColumnWidth(5, 110); sh.setColumnWidth(6, 80); sh.setColumnWidth(7, 130);
+    buildFooterBlock(sh);
     sh.getRange('A11').setNote('Чтобы добавить потребителя — допишите строку в конец списка. ' +
         'Строки читаются до первой полностью пустой. После правки выберите меню «💧 Вода → Перестроить лист».');
     sh.setFrozenRows(8);
@@ -125,15 +129,37 @@ var LBL_USER = 'Пароль пользователя', LBL_ADMIN = 'Парол�
 
 function randomPwd() { return String(100000 + Math.floor(Math.random() * 900000)); }
 
-/** Настройки от версии 1.0 (один пароль) → два пароля. */
+/** Блок «Постоянная надпись» на листе «Настройки»: I7…I13. */
+function buildFooterBlock(sh) {
+    sh.getRange('I7').setValue('ПОСТОЯННАЯ НАДПИСЬ под таблицей — видна всегда: на сайте, на листе «Таблица» и при печати. До 5 строк, пустые не выводятся.')
+        .setFontWeight('bold').setWrap(true);
+    sh.getRange('I8').setValue('Текст надписи').setFontWeight('bold').setBackground(COLOR.head).setFontColor(COLOR.headText);
+    sh.getRange('I9:I13').setBackground(COLOR.input).setWrap(true).setNumberFormat('@');
+    sh.setColumnWidth(8, 30); sh.setColumnWidth(9, 440);
+}
+
+/** Перевод «Настроек» прошлых версий. Возвращает, что поменяли. */
 function migrateSettings(sh) {
-    if (String(sh.getRange('A6').getValue()).trim()) return;
+    var out = {};
+    // 1.2: постоянная надпись
+    if (!String(sh.getRange('I8').getValue()).trim()) buildFooterBlock(sh);
+    // 1.2: №5 больше не «не распределять» по умолчанию и получает долю из примеров
+    var cv = sh.getRange(9, 5, 52, 3).getValues();
+    for (var i = 0; i < cv.length; i++) {
+        if (String(cv[i][0]).trim() === '№5' && !(num(cv[i][1]) > 0) && cv[i][2] === true) {
+            sh.getRange(9 + i, 6, 1, 2).setValues([[0.1627, false]]);
+            out.nd5 = true;
+        }
+    }
+    // 1.1: второй пароль
+    if (String(sh.getRange('A6').getValue()).trim()) return out;
     sh.getRange('A5').setValue(LBL_USER);
     sh.getRange('A6').setValue(LBL_ADMIN);
     sh.getRange('B6').setNumberFormat('@').setValue(randomPwd()).setBackground(COLOR.input);
     if (!String(sh.getRange('B5').getValue()).trim()) sh.getRange('B5').setNumberFormat('@').setValue(randomPwd());
     sh.getRange('C5').setValue('создаёт и сохраняет расчёты').setFontColor(COLOR.auto);
     sh.getRange('C6').setValue('+ журнал: смотрит, открывает, удаляет').setFontColor(COLOR.auto);
+    return out;
 }
 
 function buildLogSheet(sh) {
@@ -173,11 +199,13 @@ function readSettings() {
         s.cols.push({ name: name, share: num(cv[i][1]) || 0, nd: cv[i][2] === true });
     }
     if (!s.cols.length) s.cols = VODA_DEFAULTS.cols;
+    s.footer = sh.getRange('I9:I13').getValues().map(function (r) { return String(r[0]).trim(); })
+        .filter(function (t) { return t; });
     return s;
 }
 
 function publicSettings(s) {
-    return { title: s.title, decimals: s.decimals, rows: s.rows, cols: s.cols };
+    return { title: s.title, decimals: s.decimals, rows: s.rows, cols: s.cols, footer: s.footer || [] };
 }
 
 function num(v) {
@@ -199,7 +227,7 @@ function layoutFor(settings) {
         n: n, m: m, lastCol: C_COL1 + m - 1,
         cols: settings.cols.map(function (c) { return c.name; }),
         rSum: rSum, rIn: rSum + 1, rNd: rSum + 2, rTot: rSum + 3, rMsg: rSum + 4,
-        rNotes: rSum + 7, id: ''
+        rNotes: rSum + 7, rFoot: rSum + 11, footer: (settings.footer || []).slice(), id: ''
     };
 }
 
@@ -214,7 +242,10 @@ function readState(sh, L) {
     var dv = sh.getRange(5, 2).getValue();
     var date = dv instanceof Date ? Utilities.formatDate(dv, tz, 'yyyy-MM-dd') : String(dv || '');
     var inp = sh.getRange(L.rIn, C_TOT, 2, L.m + 1).getValues();
-    var st = { id: L.id || '', lines: lines, date: date, total: num(inp[0][0]), cols: {}, notes: [] };
+    var mv = sh.getRange(5, C_TOT + 1).getValue(), month = '';
+    if (mv instanceof Date) month = Utilities.formatDate(mv, tz, 'yyyy-MM');
+    else { var mm = /(\d{1,2})[.\-\/](\d{4})/.exec(String(mv || '')); if (mm) month = mm[2] + '-' + ('0' + mm[1]).slice(-2); }
+    var st = { id: L.id || '', lines: lines, date: date, month: month, total: num(inp[0][0]), cols: {}, notes: [] };
     for (var j = 0; j < L.m; j++) st.cols[L.cols[j]] = { value: num(inp[0][j + 1]), nd: inp[1][j + 1] === true };
     st.notes = sh.getRange(L.rNotes, 1, 3, 1).getValues().map(function (r) { return String(r[0]); });
     return st;
@@ -228,7 +259,7 @@ function writeTable(sh, settings, state) {
     all.breakApart(); all.clearDataValidations(); all.clearNote(); sh.clear();
     var W = L.lastCol;
     if (sh.getMaxColumns() < W) sh.insertColumnsAfter(sh.getMaxColumns(), W - sh.getMaxColumns());
-    if (sh.getMaxRows() < L.rNotes + 3) sh.insertRowsAfter(sh.getMaxRows(), L.rNotes + 3 - sh.getMaxRows());
+    if (sh.getMaxRows() < L.rFoot + 6) sh.insertRowsAfter(sh.getMaxRows(), L.rFoot + 6 - sh.getMaxRows());
 
     sh.setColumnWidth(C_NO, 45); sh.setColumnWidth(C_DESC, 240);
     for (var j = 0; j <= L.m; j++) sh.setColumnWidth(C_TOT + j, 90);   // «Общее» и все колонки одной ширины
@@ -243,6 +274,14 @@ function writeTable(sh, settings, state) {
         var p = state.date.split('-'); dateCell.setValue(new Date(+p[0], +p[1] - 1, +p[2]));
     } else dateCell.setValue(state.date || '');
     dateCell.setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(true).build());
+    // шильдик «Отчёт за»: дата 1-го числа месяца в формате «ноябрь 2026»
+    sh.getRange(5, C_TOT).setValue('Отчёт за:').setFontWeight('bold').setHorizontalAlignment('right');
+    var mCell = sh.getRange(5, C_TOT + 1, 1, 2).merge().getCell(1, 1);
+    mCell.setBackground(COLOR.input).setNumberFormat('mmmm yyyy').setFontWeight('bold').setHorizontalAlignment('left');
+    var mm = /^(\d{4})-(\d{2})$/.exec(state.month || '');
+    mCell.setValue(mm ? new Date(+mm[1], +mm[2] - 1, 1) : '');
+    mCell.setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(true)
+        .setHelpText('Месяц отчёта: введите, например, 01.11.2026').build());
     sh.getRange(6, 1, 1, W).merge().setValue('Жёлтые клетки — для ввода. Остальное считается само.')
         .setFontColor(COLOR.auto).setFontStyle('italic').setFontSize(9);
 
@@ -295,6 +334,9 @@ function writeTable(sh, settings, state) {
     sh.getRange(L.rNotes - 1, 1).setValue('Выводы:').setFontWeight('bold');
     var notes = state.notes || ['', '', ''];
     for (k = 0; k < 3; k++) sh.getRange(L.rNotes + k, 1, 1, W).merge().setValue(notes[k] || '').setBackground(COLOR.input).setWrap(true);
+    // постоянная надпись — из «Настроек», здесь не править
+    for (k = 0; k < L.footer.length; k++) sh.getRange(L.rFoot + k, 1, 1, W).merge().setValue(L.footer[k]).setWrap(true).setFontColor('#333333');
+    if (L.footer.length) sh.getRange(L.rFoot, 1).setNote('Постоянная надпись. Меняется на листе «Настройки», столбец I.');
 
     sh.setFrozenRows(0);
     renderValues(sh, L, settings, voda_calc(settings, state));
@@ -329,7 +371,8 @@ function renderValues(sh, L, settings, res) {
 function recalcSheet(sh, L) {
     var settings = readSettings();
     var same = L.n === settings.rows.length && L.m === settings.cols.length &&
-        L.cols.join('\u0001') === settings.cols.map(function (c) { return c.name; }).join('\u0001');
+        L.cols.join('\u0001') === settings.cols.map(function (c) { return c.name; }).join('\u0001') &&
+        JSON.stringify(L.footer || []) === JSON.stringify(settings.footer || []);
     var state = readState(sh, L);
     if (!same) return writeTable(sh, settings, state);
     renderValues(sh, L, settings, voda_calc(settings, state));
@@ -340,6 +383,11 @@ function recalcSheet(sh, L) {
 function onEdit(e) {
     try {
         var sh = e.range.getSheet();
+        if (sh.getName() === SH_SET) {          // правка настроек — сразу обновляем «Таблицу»
+            var t = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_TAB), TL = t && getLayout(t);
+            if (TL) recalcSheet(t, TL);
+            return;
+        }
         if (sh.getName() !== SH_TAB) return;
         var L = getLayout(sh);
         if (!L) return;
@@ -395,7 +443,7 @@ function logSave(state, settings, res, isAdmin) {
         return c.name + ': ' + voda_format(c.value, res.decimals) + (c.nd ? ' (не распределялась)' : '');
     }).join('; ');
     var row = [id, clean.date, Utilities.formatDate(new Date(), tz, 'dd.MM.yyyy HH:mm'),
-        (clean.lines || []).filter(String).join(' / '), res.total, colsText,
+        [voda_monthLabel(clean.month)].concat(clean.lines || []).filter(String).join(' / '), res.total, colsText,
         (clean.notes || []).filter(String).join(' / '), JSON.stringify(clean)];
     var last = sh.getLastRow(), at = 0;
     if (last > 1 && state.id) {
@@ -420,10 +468,13 @@ function logSave(state, settings, res, isAdmin) {
 function logList() {
     var sh = logSheet(), last = sh.getLastRow();
     if (last < 2) return [];
-    return sh.getRange(2, 1, last - 1, 5).getValues().map(function (r) {
+    return sh.getRange(2, 1, last - 1, 8).getValues().map(function (r) {
         var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
         var f = function (v, p) { return v instanceof Date ? Utilities.formatDate(v, tz, p) : String(v); };
-        return { id: String(r[0]), date: f(r[1], 'yyyy-MM-dd'), saved: f(r[2], 'dd.MM.yyyy HH:mm'), title: String(r[3]), total: r[4] };
+        var month = '', lines = [];
+        try { var j = JSON.parse(r[7]); month = j.month || ''; lines = j.lines || []; } catch (e) { }
+        return { id: String(r[0]), date: f(r[1], 'yyyy-MM-dd'), month: month, saved: f(r[2], 'dd.MM.yyyy HH:mm'),
+            title: lines.filter(String).join(' / '), total: r[4] };
     }).filter(function (x) { return x.id; });
 }
 
@@ -455,6 +506,7 @@ function cleanState(s) {
     var three = function (a) { a = (a || []).slice(0, 3).map(function (x) { return String(x || '').slice(0, 500); }); while (a.length < 3) a.push(''); return a; };
     return {
         id: String(s.id || ''), date: String(s.date || '').slice(0, 10),
+        month: /^\d{4}-\d{2}$/.test(String(s.month || '')) ? String(s.month) : '',
         lines: three(s.lines), notes: three(s.notes), total: num(s.total), cols: cols
     };
 }
@@ -700,10 +752,18 @@ function voda_format(x, d) {
     return (neg ? '−' : '') + int + (p[1] ? ',' + p[1] : '');
 }
 
+var VODA_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+/** '2026-11' → 'Ноябрь 2026' */
+function voda_monthLabel(ym) {
+    var m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+    return m ? VODA_MONTHS[+m[2] - 1] + ' ' + m[1] : '';
+}
+
 // Значения по умолчанию — взяты из ваших трёх примеров (30 000, 35 000, 10 000)
 var VODA_DEFAULTS = {
     title: 'Распределение по потребителям',
     decimals: 0,
+    footer: [],
     rows: [
         { no: '1', desc: '', w: 22.6101 }, { no: '2', desc: '', w: 0 }, { no: '3', desc: '', w: 0 },
         { no: '4', desc: '', w: 2.2597 }, { no: '5', desc: '', w: 40.2588 }, { no: '6', desc: '', w: 3.5124 },
@@ -715,9 +775,9 @@ var VODA_DEFAULTS = {
         { no: '23', desc: '', w: 1.5719 }, { no: '24', desc: '', w: 1.3929 }, { no: '25', desc: '', w: 0.0374 }
     ],
     cols: [
-        { name: '№1', share: 17.8824, nd: false }, { name: '№2', share: 17.3028, nd: false },
-        { name: '№4', share: 19.9324, nd: false }, { name: '№3', share: 24.8057, nd: false },
-        { name: '№6', share: 20.0767, nd: false }, { name: '№5', share: 0, nd: true }
+        { name: '№1', share: 17.8533, nd: false }, { name: '№2', share: 17.2747, nd: false },
+        { name: '№4', share: 19.9000, nd: false }, { name: '№3', share: 24.7653, nd: false },
+        { name: '№6', share: 20.0440, nd: false }, { name: '№5', share: 0.1627, nd: false }
     ]
 };
 // ==== CALC END ====
