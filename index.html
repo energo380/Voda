@@ -1,0 +1,918 @@
+<!-- ============================================================
+     INDEX.HTML — Voda, версия 1.0
+     Нужен скрипт таблицы apps-script/Code.gs версии 1.0
+     Сайт работает и без Google Таблицы (данные в этом браузере),
+     пока API_URL ниже пустой.
+     ============================================================ -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вода — распределение</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --ink: #10213a; --muted: #6b7a90; --line: #1d2b40; --accent: #2f9be0; --accent-2: #4fc3f7;
+    --input: #fff8d6; --input-line: #e7cf6a; --auto: #8a94a3; --err: #d93a2f; --err-bg: #fdecea;
+    --ok: #1f8a4c; --ok-bg: #e6f5ec; --sum: #eef3fa; --tot: #dde8f6; --nd: #f1f1f1;
+}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh; color: #fff;
+}
+button { font: inherit; cursor: pointer; }
+input { font: inherit; color: inherit; }
+
+/* ---------- верхняя панель ---------- */
+.top {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(15, 25, 50, .82); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.top-in { max-width: 1180px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; margin-right: auto; }
+.brand .drop { width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: linear-gradient(135deg, var(--accent-2), var(--accent)); box-shadow: 0 4px 14px rgba(79,195,247,.35); }
+.brand small { display: block; font-weight: 400; font-size: 12px; color: #a9b8d0; }
+.conn { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,.08); color: #c9d6ea; white-space: nowrap; }
+.conn.on { background: rgba(46, 204, 113, .18); color: #9ff0bf; }
+.conn.off { background: rgba(241, 196, 15, .16); color: #ffe08a; }
+.conn.bad { background: rgba(231, 76, 60, .2); color: #ffb3aa; }
+
+.tools { max-width: 1180px; margin: 0 auto; padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color: #fff;
+    padding: 8px 14px; border-radius: 10px; font-size: 14px; transition: background .15s, transform .05s; white-space: nowrap; }
+.btn:hover { background: rgba(255,255,255,.16); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: linear-gradient(135deg, var(--accent-2), var(--accent)); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.date-box { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px; padding: 3px 4px 3px 12px; font-size: 14px; }
+.date-box input[type=text] { width: 100px; background: transparent; border: 0; outline: 0; color: #fff; font-size: 14px; letter-spacing: .5px; }
+.date-box .cal { background: transparent; border: 0; color: #fff; font-size: 16px; padding: 4px 6px; border-radius: 6px; }
+.date-box .cal:hover { background: rgba(255,255,255,.12); }
+.date-box input[type=date] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.rec { font-size: 12px; color: #a9b8d0; margin-left: auto; }
+.rec b { color: #fff; font-weight: 600; }
+.rec .dirty { color: #ffe08a; }
+
+/* ---------- лист ---------- */
+.wrap { max-width: 1180px; margin: 18px auto 40px; padding: 0 16px; }
+.paper { background: #fff; color: var(--ink); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.35); padding: 26px 28px 30px; }
+.doc-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+.lines { display: grid; gap: 4px; margin-bottom: 10px; }
+.line-in { width: 100%; border: 1px dashed var(--input-line); background: var(--input); border-radius: 6px; padding: 6px 10px; font-size: 14px; outline: none; }
+.line-in:focus { border-style: solid; border-color: var(--accent); background: #fffdf2; }
+.line-in::placeholder { color: #b9a45a; font-style: italic; }
+.doc-date { font-size: 14px; margin: 4px 0 14px; }
+.doc-date b { font-weight: 600; }
+
+.tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.t { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.t th, .t td { border: 1px solid #c9d2df; padding: 4px 8px; text-align: center; white-space: nowrap; }
+.t thead th { background: #1f3b63; color: #fff; font-weight: 600; border-color: #1f3b63; position: relative; }
+.t thead th.c-tot { background: #17304f; }
+.t td.desc { text-align: left; white-space: normal; min-width: 160px; }
+.t td.no { color: var(--muted); width: 44px; }
+.t td.c-tot { font-weight: 600; background: #f7f9fc; }
+.t td.nd { background: var(--nd); }
+.t tbody tr:hover td { background: #eef6fd; }
+.t tbody tr:hover td.nd { background: #e7e7e7; }
+.t tr.zero td:not(.no):not(.desc) { color: transparent; }
+.t tfoot td { border-color: #b7c3d3; }
+.t tr.sum td { background: var(--sum); font-style: italic; color: #33475f; }
+.t tr.tot td { background: var(--tot); font-weight: 700; font-size: 14.5px; }
+.t tr.tot td.lbl, .t tr.sum td.lbl, .t tr.ndr td.lbl { text-align: left; }
+.t tr.ndr td { background: #fafbfd; font-size: 12px; color: var(--muted); }
+.t thead th, .t tr.tot td { border-left-color: #1d2b40; }
+.t tbody td.c-tot, .t tfoot td.c-tot { border-left: 2px solid #1d2b40; border-right: 2px solid #1d2b40; }
+
+.cin { width: 100%; min-width: 76px; text-align: center; font-weight: 700; font-size: 14.5px; border: 1px dashed var(--input-line);
+    background: var(--input); border-radius: 6px; padding: 4px 4px; outline: none; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cin::placeholder { color: var(--auto); font-style: italic; font-weight: 600; opacity: 1; }
+.cin.set { border-style: solid; border-color: #d8b93c; background: #fff1b0; }
+.cin:focus { border-color: var(--accent); border-style: solid; background: #fff; box-shadow: 0 0 0 3px rgba(47,155,224,.18); }
+.cin.bad { border-color: var(--err) !important; background: var(--err-bg) !important; color: var(--err); }
+.hint { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); margin-top: 2px; min-height: 13px; font-style: normal; }
+.hint.bad { color: var(--err); }
+.ndl { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; padding: 2px 6px; border-radius: 6px; }
+.ndl:hover { background: #eef2f8; }
+.ndl input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.ndl.on { color: #9a5b00; font-weight: 600; background: #fff3dd; }
+.star { color: #ffd479; }
+
+.status { margin-top: 12px; padding: 9px 12px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; }
+.status.ok { background: var(--ok-bg); color: #145c33; }
+.status.bad { background: var(--err-bg); color: #9b1f17; font-weight: 600; }
+.legend { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { color: var(--auto); font-weight: 600; }
+.legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 3px 0 10px; border: 1px solid var(--input-line); background: var(--input); }
+
+.notes-h { font-weight: 700; margin: 18px 0 6px; font-size: 15px; }
+.pv { display: none; }
+
+/* ---------- окна ---------- */
+.modal-bg { position: fixed; inset: 0; background: rgba(5,10,25,.6); display: none; align-items: flex-start; justify-content: center; z-index: 50; padding: 60px 14px; overflow-y: auto; }
+.modal-bg.show { display: flex; }
+.modal { background: #1b2a48; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; width: 100%; max-width: 640px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.modal h2 { font-size: 18px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.modal .x { background: transparent; border: 0; color: #fff; font-size: 22px; line-height: 1; padding: 2px 8px; border-radius: 8px; }
+.modal .x:hover { background: rgba(255,255,255,.1); }
+.j-list { display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.j-item { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 10px 12px; }
+.j-item.cur { border-color: var(--accent-2); }
+.j-item .d { font-weight: 700; min-width: 92px; }
+.j-item .jt { flex: 1; min-width: 0; font-size: 13px; color: #c9d6ea; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.j-item .s { font-size: 13px; color: #fff; white-space: nowrap; }
+.j-item .btn { padding: 5px 10px; font-size: 13px; }
+.j-item .del.ask { background: #c0392b; border-color: #c0392b; }
+.empty { color: #a9b8d0; text-align: center; padding: 20px; font-size: 14px; }
+
+.login { max-width: 360px; margin: 14vh auto 0; background: rgba(255,255,255,.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 30px; text-align: center; }
+.login h1 { font-size: 22px; margin-bottom: 18px; }
+.login input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff; outline: none; margin-bottom: 12px; }
+.login .err { color: #ffb3aa; font-size: 13px; min-height: 18px; margin-bottom: 8px; }
+.login .btn { width: 100%; padding: 12px; }
+
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); background: #0f1b33; color: #fff; padding: 10px 18px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.15); box-shadow: 0 10px 30px rgba(0,0,0,.4); opacity: 0; transition: .25s; z-index: 60; font-size: 14px; pointer-events: none; max-width: 90vw; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.bad { background: #5a1a14; }
+.hidden { display: none !important; }
+
+@media (max-width: 700px) {
+    .paper { padding: 16px 12px 20px; border-radius: 10px; }
+    .rec { width: 100%; margin-left: 0; }
+    .brand { font-size: 16px; }
+    .top { position: static; }
+    .j-item .jt { flex-basis: 100%; order: 5; }
+}
+
+/* ---------- печать ---------- */
+@page { size: A4 portrait; margin: 12mm 10mm; }
+@media print {
+    body { background: #fff !important; color: #000; }
+    .noprint, .top, .modal-bg, .toast, .login { display: none !important; }
+    .wrap { margin: 0; padding: 0; max-width: none; }
+    .paper { box-shadow: none; border-radius: 0; padding: 0; }
+    .in { display: none !important; }
+    .pv { display: inline; }
+    .pv.block { display: block; }
+    .lines .pv.block { font-size: 13px; }
+    .pv.empty { display: none !important; }
+    table.t { min-width: 0; font-size: 10.5px; }
+    .t th, .t td { padding: 2px 4px; border-color: #000 !important; }
+    .t thead th { background: #fff !important; color: #000 !important; }
+    .t td.c-tot, .t tr.sum td, .t tr.tot td, .t td.nd { background: #fff !important; }
+    .t tr.zero td:not(.no):not(.desc) { color: transparent; }
+    .t tr.ndr, .status.ok, .legend .scr { display: none !important; }
+    .t tr.tot td { font-size: 11px; }
+    .star { color: #000; }
+    .tbl-scroll { overflow: visible; }
+    .hint { display: none; }
+    .notes-h.none { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- вход (только если в таблице задан пароль) -->
+<div id="loginView" class="hidden">
+    <div class="login">
+        <h1>💧 Вода</h1>
+        <input type="password" id="pwd" placeholder="Пароль" autocomplete="current-password">
+        <div class="err" id="pwdErr"></div>
+        <button class="btn primary" id="pwdBtn">Войти</button>
+    </div>
+</div>
+
+<div id="appView" class="hidden">
+<header class="top">
+    <div class="top-in">
+        <div class="brand"><span class="drop"></span><span><span id="appTitle">Распределение</span><small>общее → колонки → потребители</small></span></div>
+        <span class="conn" id="conn">…</span>
+    </div>
+    <div class="tools">
+        <label class="date-box" title="Дата расчёта">Дата:
+            <input type="text" id="dateTxt" inputmode="numeric" placeholder="дд.мм.гггг" maxlength="10" autocomplete="off">
+            <button class="cal" type="button" id="calBtn" aria-label="Календарь">📅</button>
+            <input type="date" id="datePick" tabindex="-1" aria-hidden="true">
+        </label>
+        <button class="btn primary" id="saveBtn">💾 Сохранить</button>
+        <button class="btn hidden" id="saveNewBtn" title="Сохранить отдельной записью в журнал">＋ Как новый</button>
+        <button class="btn" id="journalBtn">📒 Журнал</button>
+        <button class="btn" id="printBtn">🖨 Печать</button>
+        <button class="btn" id="clearBtn" title="Стереть введённые итоги колонок — останется только общее">↺ Колонки — авто</button>
+        <button class="btn" id="newBtn">🗋 Новый</button>
+        <span class="rec" id="rec"></span>
+    </div>
+</header>
+
+<main class="wrap">
+    <div class="paper">
+        <div class="doc-title" id="docTitle"></div>
+        <div class="lines">
+            <input class="line-in in" data-line="0" maxlength="500" placeholder="Строка 1 — что это за таблица (например: «Распределение воды за ноябрь»)">
+            <span class="pv block" data-pv-line="0"></span>
+            <input class="line-in in" data-line="1" maxlength="500" placeholder="Строка 2 — о чём она, откуда цифры">
+            <span class="pv block" data-pv-line="1"></span>
+            <input class="line-in in" data-line="2" maxlength="500" placeholder="Строка 3 — дополнительно">
+            <span class="pv block" data-pv-line="2"></span>
+        </div>
+        <div class="doc-date">Дата: <b id="docDate">—</b></div>
+
+        <div class="tbl-scroll">
+            <table class="t" id="tbl"></table>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="legend" id="legend">
+            <span class="scr"><span class="sw"></span>жёлтое — ввод; <i>серый курсив</i> — посчитано автоматически, ввод не нужен. Enter — к следующей колонке.</span>
+            <span id="ndFoot"></span>
+        </div>
+
+        <div class="notes-h" id="notesH">Выводы</div>
+        <div class="lines">
+            <input class="line-in in" data-note="0" maxlength="500" placeholder="Вывод 1">
+            <span class="pv block" data-pv-note="0"></span>
+            <input class="line-in in" data-note="1" maxlength="500" placeholder="Вывод 2">
+            <span class="pv block" data-pv-note="1"></span>
+            <input class="line-in in" data-note="2" maxlength="500" placeholder="Вывод 3">
+            <span class="pv block" data-pv-note="2"></span>
+        </div>
+    </div>
+</main>
+</div>
+
+<div class="modal-bg" id="journalModal">
+    <div class="modal">
+        <h2>📒 Журнал расчётов <button class="x" data-close>×</button></h2>
+        <div class="j-list" id="jList"></div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// Адрес веб-приложения Google Apps Script (см. README).
+// Пусто — сайт работает сам по себе, данные хранятся в этом браузере.
+// ============================================================
+const API_URL = '';
+const API_TIMEOUT = 25000;
+const DRAFT_KEY = 'voda_draft_v1';
+const LOCAL_LOG_KEY = 'voda_local_journal_v1';
+const PWD_KEY = 'voda_pwd_v1';
+
+// ==== CALC START ==== (этот блок одинаковый в index.html и Code.gs)
+/*
+ * Расчёт таблицы.
+ *  settings: { rows:[{no,desc,w}], cols:[{name,share,nd}], decimals }
+ *  state:    { total:number|null, cols:{ имя:{ value:number|null, nd:bool } } }
+ *
+ * 1. Колонки: введённые берутся как есть, остаток (общее − введённые)
+ *    раскладывается на НЕвведённые по их долям. Если доли у всех
+ *    оставшихся нулевые — поровну между ними.
+ *    Если общее не введено — общее = сумма введённых колонок.
+ * 2. Каждая колонка без отметки «не распределять» раскладывается по
+ *    строкам по весам строк. Округление методом наибольшего остатка,
+ *    поэтому сумма клеток колонки ВСЕГДА точно равна итогу колонки.
+ * 3. Общее по строке = сумма её клеток. «Не распределять» — колонка
+ *    есть только в итоговой строке, в строки не попадает.
+ */
+function voda_apportion(total, weights) {
+    // total — целое (в минимальных единицах), weights — неотрицательные
+    var n = weights.length, res = [], i, sumW = 0;
+    for (i = 0; i < n; i++) { res.push(0); sumW += Math.max(0, +weights[i] || 0); }
+    if (n === 0 || total === 0) return res;
+    if (sumW <= 0) return null;
+    var sign = total < 0 ? -1 : 1, abs = Math.abs(total), used = 0, rest = [];
+    for (i = 0; i < n; i++) {
+        var exact = abs * Math.max(0, +weights[i] || 0) / sumW;
+        var fl = Math.floor(exact + 1e-9);
+        res[i] = fl; used += fl;
+        rest.push({ i: i, r: exact - fl, w: weights[i] });
+    }
+    rest.sort(function (a, b) { return (b.r - a.r) || (b.w - a.w) || (a.i - b.i); });
+    for (var k = 0; k < abs - used; k++) res[rest[k % n].i] += 1;
+    for (i = 0; i < n; i++) res[i] *= sign;
+    return res;
+}
+
+function voda_calc(settings, state) {
+    var d = Math.max(0, Math.min(3, parseInt(settings.decimals, 10) || 0));
+    var unit = Math.pow(10, d);
+    var toU = function (x) { return Math.round(x * unit); };
+    var fromU = function (x) { return x === null ? null : x / unit; };
+    var fmt = function (x) { return voda_format(x / unit, d); };
+    var cols = settings.cols, rows = settings.rows;
+    var st = state || {}, stc = st.cols || {};
+    var errors = [], warnings = [];
+
+    var entered = [], nd = [], sumE = 0, j, i;
+    for (j = 0; j < cols.length; j++) {
+        var c = stc[cols[j].name] || {};
+        var v = (c.value === null || c.value === undefined || c.value === '' || isNaN(+c.value)) ? null : toU(+c.value);
+        if (v !== null && v < 0) { errors.push('Колонка ' + cols[j].name + ': число не может быть отрицательным'); v = null; }
+        entered.push(v);
+        nd.push(c.nd === undefined || c.nd === null ? !!cols[j].nd : !!c.nd);
+        if (v !== null) sumE += v;
+    }
+
+    var totalEntered = !(st.total === null || st.total === undefined || st.total === '' || isNaN(+st.total));
+    var T = totalEntered ? toU(+st.total) : sumE;
+    if (T < 0) { errors.push('Общее не может быть отрицательным'); T = 0; }
+
+    var free = [], freeW = [];
+    for (j = 0; j < cols.length; j++) if (entered[j] === null) { free.push(j); freeW.push(+cols[j].share || 0); }
+    var R = T - sumE;
+    var C = entered.slice(), auto = [];
+    for (j = 0; j < cols.length; j++) auto.push(entered[j] === null);
+    var maxFor = {}; // сколько ещё можно ввести в каждую колонку
+
+    if (totalEntered) {
+        for (j = 0; j < cols.length; j++) maxFor[cols[j].name] = fromU(T - sumE + (entered[j] || 0));
+    }
+
+    if (R < 0) {
+        errors.push('Введённые колонки в сумме ' + fmt(sumE) + ' — это больше общего (' + fmt(T) + ') на ' + fmt(-R) + '. Уменьшите колонки или общее.');
+        for (var f = 0; f < free.length; f++) C[free[f]] = 0;
+    } else if (free.length === 0) {
+        if (R > 0) errors.push('Все колонки введены, в сумме ' + fmt(sumE) + ', а общее ' + fmt(T) + ': не хватает ' + fmt(R) + '.');
+    } else {
+        var allZero = true;
+        for (var z = 0; z < freeW.length; z++) if (freeW[z] > 0) allZero = false;
+        if (allZero) for (z = 0; z < freeW.length; z++) freeW[z] = 1;
+        var part = voda_apportion(R, freeW);
+        for (f = 0; f < free.length; f++) C[free[f]] = part[f];
+    }
+
+    var weights = [];
+    for (i = 0; i < rows.length; i++) weights.push(Math.max(0, +rows[i].w || 0));
+    var cells = [], rowTot = [], colCellSum = [], D = 0, ndSum = 0;
+    for (i = 0; i < rows.length; i++) { cells.push([]); rowTot.push(0); }
+    for (j = 0; j < cols.length; j++) {
+        if (nd[j]) {
+            for (i = 0; i < rows.length; i++) cells[i].push(null);
+            colCellSum.push(null); ndSum += C[j];
+            continue;
+        }
+        var col = voda_apportion(C[j], weights);
+        if (col === null) {
+            if (C[j] !== 0) errors.push('У всех строк вес 0 — колонку ' + cols[j].name + ' не по чему распределять (заполните веса на листе «Настройки»)');
+            col = []; for (i = 0; i < rows.length; i++) col.push(0);
+        }
+        var s = 0;
+        for (i = 0; i < rows.length; i++) { cells[i].push(col[i]); rowTot[i] += col[i]; s += col[i]; }
+        colCellSum.push(s); D += s;
+    }
+
+    var info = '';
+    if (!errors.length) {
+        var autoNames = [];
+        for (f = 0; f < free.length; f++) autoNames.push(cols[free[f]].name);
+        if (free.length && totalEntered && free.length < cols.length) {
+            info = 'Введено колонок: ' + (cols.length - free.length) + ' из ' + cols.length + '. Остаток ' + fmt(R) +
+                ' разложен на ' + autoNames.join(', ') + ' по их долям.';
+        } else if (free.length === cols.length && totalEntered) {
+            info = 'Общее разложено на все колонки по долям. Можно вводить итоги колонок.';
+        } else if (!totalEntered) {
+            info = 'Общее не введено — считается как сумма колонок.';
+        } else {
+            info = 'Все колонки введены, сумма сходится с общим.';
+        }
+        if (ndSum) info += ' Не распределяется по строкам: ' + fmt(ndSum) + '.';
+    }
+
+    var out = {
+        ok: errors.length === 0, errors: errors, warnings: warnings, info: info,
+        decimals: d,
+        total: fromU(T), totalAuto: !totalEntered, rest: fromU(R),
+        cols: [], cells: [], rowTot: [], distributed: fromU(D), notDistributed: fromU(ndSum)
+    };
+    for (j = 0; j < cols.length; j++) out.cols.push({
+        name: cols[j].name, value: fromU(C[j]), auto: auto[j], nd: nd[j],
+        cellSum: colCellSum[j] === null ? null : fromU(colCellSum[j]),
+        max: maxFor[cols[j].name] === undefined ? null : maxFor[cols[j].name]
+    });
+    for (i = 0; i < rows.length; i++) {
+        var r = [];
+        for (j = 0; j < cols.length; j++) r.push(cells[i][j] === null ? null : fromU(cells[i][j]));
+        out.cells.push(r); out.rowTot.push(fromU(rowTot[i]));
+    }
+    return out;
+}
+
+function voda_format(x, d) {
+    if (x === null || x === undefined || x === '') return '';
+    var s = (+x).toFixed(d || 0), neg = s.charAt(0) === '-';
+    if (neg) s = s.slice(1);
+    var p = s.split('.'), int = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (neg ? '−' : '') + int + (p[1] ? ',' + p[1] : '');
+}
+
+// Значения по умолчанию — взяты из ваших трёх примеров (30 000, 35 000, 10 000)
+var VODA_DEFAULTS = {
+    title: 'Распределение по потребителям',
+    decimals: 0,
+    rows: [
+        { no: '1', desc: '', w: 22.6101 }, { no: '2', desc: '', w: 0 }, { no: '3', desc: '', w: 0 },
+        { no: '4', desc: '', w: 2.2597 }, { no: '5', desc: '', w: 40.2588 }, { no: '6', desc: '', w: 3.5124 },
+        { no: '7', desc: '', w: 3.5565 }, { no: '8', desc: '', w: 1.5385 }, { no: '9', desc: '', w: 1.0030 },
+        { no: '10', desc: '', w: 0.3138 }, { no: '11', desc: '', w: 0.1082 }, { no: '12', desc: '', w: 0.0975 },
+        { no: '14', desc: '', w: 3.9985 }, { no: '15', desc: '', w: 2.4373 }, { no: '16', desc: '', w: 0.3779 },
+        { no: '17', desc: '', w: 0.2631 }, { no: '18', desc: '', w: 14.4168 }, { no: '19', desc: '', w: 0.0975 },
+        { no: '20', desc: '', w: 0.0828 }, { no: '21', desc: '', w: 0.0280 }, { no: '22', desc: '', w: 0.0374 },
+        { no: '23', desc: '', w: 1.5719 }, { no: '24', desc: '', w: 1.3929 }, { no: '25', desc: '', w: 0.0374 }
+    ],
+    cols: [
+        { name: '№1', share: 17.8824, nd: false }, { name: '№2', share: 17.3028, nd: false },
+        { name: '№4', share: 19.9324, nd: false }, { name: '№3', share: 24.8057, nd: false },
+        { name: '№6', share: 20.0767, nd: false }, { name: '№5', share: 0, nd: true }
+    ]
+};
+// ==== CALC END ====
+
+// ============================================================
+// Состояние
+// ============================================================
+let settings = JSON.parse(JSON.stringify(VODA_DEFAULTS));
+let state = blankState();
+let journal = [];
+let dirty = false;
+let password = '';
+let lastEdited = null;     // имя колонки или 'total' — для подсветки ошибки
+let lastRes = null;
+const online = !!API_URL;
+
+function todayISO() {
+    const d = new Date(), z = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+function blankState() {
+    return { id: '', date: todayISO(), lines: ['', '', ''], notes: ['', '', ''], total: null, cols: {} };
+}
+function isoToRu(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : (iso || ''); }
+function ruToIso(ru) {
+    const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec((ru || '').trim());
+    if (!m) return null;
+    const d = new Date(+m[3], +m[2] - 1, +m[1]);
+    if (d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) return null;
+    return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+}
+function parseNum(s) {
+    if (s === null || s === undefined) return null;
+    const t = String(s).replace(/[\s ]/g, '').replace(/,/g, '.').replace('−', '-');
+    if (t === '') return null;
+    if (!/^-?\d*\.?\d*$/.test(t) || t === '.' || t === '-') return NaN;
+    return +t;
+}
+const fmt = x => voda_format(x, settings.decimals || 0);
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ============================================================
+// Таблица
+// ============================================================
+function buildTable() {
+    const cols = settings.cols, rows = settings.rows;
+    let h = '<thead><tr><th>№</th><th>Описание</th><th class="c-tot">Общее</th>';
+    cols.forEach((c, j) => h += '<th data-th="' + j + '">' + esc(c.name) + '<span class="star" data-star="' + j + '"></span></th>');
+    h += '</tr></thead><tbody>';
+    rows.forEach((r, i) => {
+        h += '<tr data-r="' + i + '"' + ((+r.w || 0) <= 0 ? ' class="zero"' : '') + '><td class="no">' + esc(r.no) + '</td><td class="desc">' + esc(r.desc) +
+            '</td><td class="c-tot" data-rt="' + i + '"></td>';
+        cols.forEach((c, j) => h += '<td data-c="' + i + '_' + j + '"></td>');
+        h += '</tr>';
+    });
+    h += '</tbody><tfoot>';
+    h += '<tr class="sum"><td></td><td class="lbl">Сумма по строкам</td><td class="c-tot" id="sumD"></td>';
+    cols.forEach((c, j) => h += '<td data-cs="' + j + '"></td>');
+    h += '</tr><tr class="tot"><td></td><td class="lbl">Общее</td><td class="c-tot">' +
+        '<input class="cin in" id="in_total" inputmode="decimal" autocomplete="off" aria-label="Общее"><span class="pv" id="pv_total"></span>' +
+        '<span class="hint" id="hint_total"></span></td>';
+    cols.forEach((c, j) => h += '<td><input class="cin in" data-in="' + j + '" inputmode="decimal" autocomplete="off" aria-label="Итог ' + esc(c.name) + '">' +
+        '<span class="pv" data-pv="' + j + '"></span><span class="hint" data-hint="' + j + '"></span></td>');
+    h += '</tr><tr class="ndr noprint"><td></td><td class="lbl">Не распределять по строкам</td><td class="c-tot"></td>';
+    cols.forEach((c, j) => h += '<td><label class="ndl" data-ndl="' + j + '"><input type="checkbox" data-nd="' + j + '"> не распр.</label></td>');
+    h += '</tr></tfoot>';
+    $('tbl').innerHTML = h;
+
+    $('in_total').addEventListener('input', e => { onNumInput('total', e.target); });
+    $('in_total').addEventListener('blur', e => prettify(e.target));
+    $('in_total').addEventListener('keydown', e => onKey(e, -1));
+    document.querySelectorAll('[data-in]').forEach(inp => {
+        const j = +inp.dataset.in;
+        inp.addEventListener('input', () => onNumInput(cols[j].name, inp));
+        inp.addEventListener('blur', () => prettify(inp));
+        inp.addEventListener('keydown', e => onKey(e, j));
+    });
+    document.querySelectorAll('[data-nd]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const name = cols[+cb.dataset.nd].name;
+            state.cols[name] = Object.assign({}, state.cols[name], { nd: cb.checked });
+            changed();
+        });
+    });
+}
+
+function fillInputs() {
+    const cols = settings.cols;
+    const t = $('in_total');
+    t.value = state.total === null || state.total === undefined ? '' : fmt(state.total);
+    cols.forEach((c, j) => {
+        const v = (state.cols[c.name] || {}).value;
+        document.querySelector('[data-in="' + j + '"]').value = v === null || v === undefined ? '' : fmt(v);
+    });
+    document.querySelectorAll('[data-line]').forEach(el => el.value = state.lines[+el.dataset.line] || '');
+    document.querySelectorAll('[data-note]').forEach(el => el.value = state.notes[+el.dataset.note] || '');
+    $('dateTxt').value = isoToRu(state.date);
+}
+
+function render() {
+    const res = voda_calc(settings, state);
+    lastRes = res;
+    const cols = settings.cols, rows = settings.rows;
+    rows.forEach((r, i) => {
+        document.querySelector('[data-rt="' + i + '"]').textContent = fmt(res.rowTot[i]);
+        cols.forEach((c, j) => {
+            const td = document.querySelector('[data-c="' + i + '_' + j + '"]');
+            const nd = res.cols[j].nd;
+            td.textContent = nd ? '' : fmt(res.cells[i][j]);
+            td.classList.toggle('nd', nd);
+        });
+    });
+    $('sumD').textContent = fmt(res.distributed);
+
+    const t = $('in_total');
+    t.placeholder = res.totalAuto ? fmt(res.total) : '';
+    t.classList.toggle('set', !res.totalAuto);
+    $('pv_total').textContent = fmt(res.total);
+    $('hint_total').textContent = res.totalAuto ? 'сумма колонок' : '';
+
+    const overflow = res.rest < 0;
+    let anyNd = false;
+    cols.forEach((c, j) => {
+        const rc = res.cols[j];
+        const inp = document.querySelector('[data-in="' + j + '"]');
+        inp.placeholder = rc.auto ? fmt(rc.value) : '';
+        inp.classList.toggle('set', !rc.auto);
+        inp.classList.toggle('bad', overflow && (lastEdited === c.name || (!lastEdited && !rc.auto)));
+        document.querySelector('[data-pv="' + j + '"]').textContent = fmt(rc.value);
+        const hint = document.querySelector('[data-hint="' + j + '"]');
+        let ht = '', hb = false;
+        if (rc.nd) ht = 'не распр.';
+        else if (rc.auto) ht = 'авто';
+        if (!rc.auto && rc.max !== null && rc.value > rc.max) { ht = 'макс. ' + fmt(rc.max); hb = true; }
+        hint.textContent = ht; hint.classList.toggle('bad', hb);
+        document.querySelector('[data-cs="' + j + '"]').textContent = rc.nd ? 'не распр.' : fmt(rc.cellSum);
+        const cb = document.querySelector('[data-nd="' + j + '"]');
+        cb.checked = rc.nd;
+        document.querySelector('[data-ndl="' + j + '"]').classList.toggle('on', rc.nd);
+        document.querySelector('[data-star="' + j + '"]').textContent = rc.nd ? '*' : '';
+        if (rc.nd) anyNd = true;
+    });
+    t.classList.toggle('bad', overflow && lastEdited === 'total');
+    $('ndFoot').textContent = anyNd ? '* — колонка не распределяется по строкам, учитывается только в итоговой строке «Общее».' : '';
+
+    const st = $('status');
+    if (res.ok) {
+        st.className = 'status ok';
+        st.textContent = '✓ ' + res.info;
+    } else {
+        st.className = 'status bad';
+        st.textContent = '⚠ ' + res.errors.join(' ');
+    }
+    // строки для печати
+    document.querySelectorAll('[data-pv-line]').forEach(el => { const v = state.lines[+el.dataset.pvLine] || ''; el.textContent = v; el.classList.toggle('empty', !v); });
+    let anyNote = false;
+    document.querySelectorAll('[data-pv-note]').forEach(el => { const v = state.notes[+el.dataset.pvNote] || ''; el.textContent = v; el.classList.toggle('empty', !v); if (v) anyNote = true; });
+    $('notesH').classList.toggle('none', !anyNote);
+    $('docDate').textContent = isoToRu(state.date) || '—';
+    $('docTitle').textContent = settings.title || '';
+    $('appTitle').textContent = settings.title || 'Распределение';
+    document.title = (state.lines[0] || settings.title || 'Вода') + (state.date ? ' — ' + isoToRu(state.date) : '');
+    $('saveBtn').disabled = !res.ok;
+    $('saveBtn').title = res.ok ? '' : 'Сначала исправьте ошибку в таблице';
+    renderRec();
+}
+
+function renderRec() {
+    const r = $('rec');
+    let t = state.id ? 'Запись журнала от <b>' + esc(isoToRu(state.date)) + '</b>' : 'Новый расчёт';
+    if (dirty) t += ' · <span class="dirty">есть несохранённые изменения</span>';
+    r.innerHTML = t;
+    $('saveNewBtn').classList.toggle('hidden', !state.id);
+}
+
+// ============================================================
+// Ввод
+// ============================================================
+function onNumInput(key, inp) {
+    let v = parseNum(inp.value);
+    if (Number.isNaN(v)) { inp.classList.add('bad'); return; }
+    lastEdited = key;
+    if (key === 'total') state.total = v;
+    else state.cols[key] = Object.assign({}, state.cols[key], { value: v });
+    changed();
+}
+function prettify(inp) {
+    const v = parseNum(inp.value);
+    if (v !== null && !Number.isNaN(v)) inp.value = fmt(v);
+}
+function onKey(e, j) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    prettify(e.target);
+    const next = document.querySelector('[data-in="' + (j + 1) + '"]');
+    if (next) { next.focus(); next.select(); } else e.target.blur();
+}
+function changed() {
+    dirty = true;
+    render();
+    saveDraft();
+}
+
+function saveDraft() {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ state, dirty, at: Date.now() })); } catch (e) { }
+}
+function readDraft() {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return null; }
+}
+
+function setState(s, isDirty) {
+    const b = blankState();
+    state = Object.assign(b, s || {});
+    state.lines = (state.lines || []).concat(['', '', '']).slice(0, 3);
+    state.notes = (state.notes || []).concat(['', '', '']).slice(0, 3);
+    state.cols = state.cols || {};
+    dirty = !!isDirty;
+    lastEdited = null;
+    fillInputs();
+    render();
+    saveDraft();
+}
+
+// ============================================================
+// Связь с Google Таблицей (как на сайте заявок: JSONP для чтения,
+// POST text/plain для записи, запасной путь — JSONP)
+// ============================================================
+function apiGet(params) {
+    return new Promise(resolve => {
+        const cb = 'voda_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e5);
+        const url = new URL(API_URL);
+        Object.keys(params).forEach(k => url.searchParams.append(k, typeof params[k] === 'object' ? JSON.stringify(params[k]) : params[k]));
+        url.searchParams.append('callback', cb);
+        let done = false, script;
+        const finish = data => {
+            if (done) return; done = true;
+            clearTimeout(timer);
+            try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+            if (script && script.parentNode) script.parentNode.removeChild(script);
+            resolve(data);
+        };
+        window[cb] = data => finish(data);
+        const timer = setTimeout(() => finish({ success: false, transport: true, error: 'Таблица долго не отвечает' }), API_TIMEOUT);
+        script = document.createElement('script');
+        script.src = url.toString();
+        script.onerror = () => finish({ success: false, transport: true, error: 'Нет связи с таблицей' });
+        document.head.appendChild(script);
+    });
+}
+async function apiPost(payload) {
+    try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), API_TIMEOUT);
+        const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow', signal: ctl.signal });
+        clearTimeout(timer);
+        const data = JSON.parse(await r.text());
+        return data;
+    } catch (e) {
+        // запасной путь: те же данные через JSONP
+        return apiGet(payload);
+    }
+}
+
+function setConn(kind, text) { const c = $('conn'); c.className = 'conn ' + kind; c.textContent = text; }
+
+// ---------- локальный журнал (когда API_URL пустой) ----------
+function localLog() { try { return JSON.parse(localStorage.getItem(LOCAL_LOG_KEY) || '[]'); } catch (e) { return []; } }
+function localLogWrite(arr) { try { localStorage.setItem(LOCAL_LOG_KEY, JSON.stringify(arr)); } catch (e) { } }
+function localList() {
+    return localLog().map(x => ({ id: x.id, date: x.date, saved: x.saved, title: (x.lines || []).filter(Boolean).join(' / '), total: x.totalCalc }));
+}
+
+// ============================================================
+// Действия
+// ============================================================
+async function boot() {
+    try { password = sessionStorage.getItem(PWD_KEY) || ''; } catch (e) { password = ''; }
+    if (!online) {
+        $('appView').classList.remove('hidden');
+        setConn('off', 'Без Google Таблицы — данные в этом браузере');
+        buildTable();
+        const d = readDraft();
+        setState(d ? d.state : demoState(), d ? d.dirty : false);
+        journal = localList();
+        return;
+    }
+    setConn('', 'Подключение…');
+    const res = await apiGet({ action: 'load', password });
+    if (res && res.needPassword) { showLogin(password ? res.error : ''); return; }
+    $('appView').classList.remove('hidden');
+    $('loginView').classList.add('hidden');
+    buildTable();
+    if (!res || !res.success) {
+        setConn('bad', 'Нет связи с таблицей');
+        toast((res && res.error) || 'Нет связи с таблицей', true);
+        const d = readDraft();
+        setState(d ? d.state : demoState(), d ? d.dirty : false);
+        return;
+    }
+    applyServer(res);
+}
+
+function applyServer(res) {
+    settings = res.settings;
+    if (!settings.cols || !settings.cols.length) settings = JSON.parse(JSON.stringify(VODA_DEFAULTS));
+    journal = res.journal || [];
+    setConn('on', 'Связано с Google Таблицей');
+    buildTable();
+    const d = readDraft();
+    if (d && d.dirty && d.state) {
+        setState(d.state, true);
+        toast('Восстановлены несохранённые изменения');
+    } else setState(res.current || blankState(), false);
+}
+
+function demoState() {
+    const s = blankState();
+    s.total = 30000; s.cols = { '№5': { value: 43 } };
+    return s;
+}
+
+function showLogin(err) {
+    $('appView').classList.add('hidden');
+    $('loginView').classList.remove('hidden');
+    $('pwdErr').textContent = err || '';
+    setTimeout(() => $('pwd').focus(), 50);
+}
+async function doLogin() {
+    const p = $('pwd').value.trim();
+    if (!p) { $('pwdErr').textContent = 'Введите пароль'; return; }
+    $('pwdBtn').disabled = true; $('pwdErr').textContent = '';
+    const res = await apiGet({ action: 'load', password: p });
+    $('pwdBtn').disabled = false;
+    if (res && res.success) {
+        password = p; try { sessionStorage.setItem(PWD_KEY, p); } catch (e) { }
+        $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden');
+        applyServer(res);
+    } else $('pwdErr').textContent = (res && res.error) || 'Ошибка';
+}
+
+async function save(asNew) {
+    const res = voda_calc(settings, state);
+    if (!res.ok) { toast('Не сохранено: ' + res.errors[0], true); return; }
+    const payload = JSON.parse(JSON.stringify(state));
+    if (asNew) payload.id = '';
+    $('saveBtn').disabled = true;
+    if (!online) {
+        const arr = localLog();
+        const id = payload.id || ('L' + Date.now());
+        payload.id = id;
+        payload.saved = new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+        payload.totalCalc = res.total;
+        const k = arr.findIndex(x => x.id === id);
+        if (k >= 0) arr[k] = payload; else arr.unshift(payload);
+        localLogWrite(arr);
+        journal = localList();
+        state.id = id; dirty = false; render(); saveDraft();
+        toast('Сохранено в журнал этого браузера');
+        return;
+    }
+    setConn('', 'Сохранение…');
+    const r = await apiPost({ action: 'save', password, state: payload, journal: true });
+    if (r && r.success) {
+        state.id = r.id; dirty = false; journal = r.journal || journal;
+        render(); saveDraft();
+        setConn('on', 'Связано с Google Таблицей');
+        toast('Сохранено в Google Таблицу');
+    } else {
+        setConn(r && r.transport ? 'bad' : 'on', r && r.transport ? 'Нет связи с таблицей' : 'Связано с Google Таблицей');
+        render();
+        toast((r && r.error) || 'Не удалось сохранить', true);
+        if (r && r.needPassword) showLogin(r.error);
+    }
+}
+
+function confirmLoseChanges() {
+    return !dirty || window.confirm('Есть несохранённые изменения. Продолжить без сохранения?');
+}
+
+function newCalc() {
+    if (!confirmLoseChanges()) return;
+    setState(blankState(), false);
+    $('in_total').focus();
+}
+
+function clearCols() {
+    settings.cols.forEach(c => { if (state.cols[c.name]) state.cols[c.name].value = null; });
+    fillInputs(); lastEdited = null; changed();
+}
+
+// ---------- журнал ----------
+async function openJournal() {
+    renderJournal();
+    $('journalModal').classList.add('show');
+    if (online) {
+        const r = await apiGet({ action: 'load', password });
+        if (r && r.success) { journal = r.journal || []; renderJournal(); }
+    } else { journal = localList(); renderJournal(); }
+}
+function renderJournal() {
+    const box = $('jList');
+    if (!journal.length) { box.innerHTML = '<div class="empty">Пока нет сохранённых расчётов. Нажмите «Сохранить».</div>'; return; }
+    const arr = journal.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    box.innerHTML = arr.map(x => '<div class="j-item' + (x.id === state.id ? ' cur' : '') + '">' +
+        '<span class="d">' + esc(isoToRu(x.date)) + '</span>' +
+        '<span class="jt" title="' + esc(x.title) + '">' + (esc(x.title) || '<i>без заголовка</i>') + '</span>' +
+        '<span class="s">' + esc(fmt(x.total)) + '</span>' +
+        '<button class="btn" data-open="' + esc(x.id) + '">Открыть</button>' +
+        '<button class="btn del" data-del="' + esc(x.id) + '">🗑</button></div>').join('');
+    box.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openRecord(b.dataset.open));
+    box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+        if (!b.classList.contains('ask')) { b.classList.add('ask'); b.textContent = 'Удалить?'; setTimeout(() => { b.classList.remove('ask'); b.textContent = '🗑'; }, 3000); return; }
+        deleteRecord(b.dataset.del);
+    });
+}
+async function openRecord(id) {
+    if (!confirmLoseChanges()) return;
+    let s = null;
+    if (online) {
+        const r = await apiGet({ action: 'get', id, password });
+        if (r && r.success) s = r.state; else { toast((r && r.error) || 'Не открылось', true); return; }
+    } else s = localLog().find(x => x.id === id);
+    if (!s) return;
+    setState(s, false);
+    $('journalModal').classList.remove('show');
+    toast('Открыт расчёт от ' + isoToRu(s.date));
+}
+async function deleteRecord(id) {
+    if (online) {
+        const r = await apiGet({ action: 'delete', id, password });
+        if (r && r.journal) journal = r.journal;
+    } else { localLogWrite(localLog().filter(x => x.id !== id)); journal = localList(); }
+    if (state.id === id) { state.id = ''; dirty = true; render(); saveDraft(); }
+    renderJournal();
+}
+
+// ---------- дата ----------
+function initDate() {
+    const txt = $('dateTxt'), pick = $('datePick');
+    txt.addEventListener('input', () => {
+        let d = txt.value.replace(/[^\d]/g, '').slice(0, 8), o = d;
+        if (d.length > 4) o = d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4);
+        else if (d.length > 2) o = d.slice(0, 2) + '.' + d.slice(2);
+        txt.value = o;
+        const iso = ruToIso(o);
+        if (iso) { state.date = iso; changed(); }
+    });
+    txt.addEventListener('blur', () => { if (!ruToIso(txt.value)) txt.value = isoToRu(state.date); });
+    $('calBtn').addEventListener('click', () => {
+        pick.value = state.date || todayISO();
+        try { pick.showPicker(); } catch (e) { pick.style.pointerEvents = 'auto'; pick.focus(); pick.click(); }
+    });
+    pick.addEventListener('change', () => { if (pick.value) { state.date = pick.value; txt.value = isoToRu(pick.value); changed(); } });
+}
+
+let toastTimer;
+function toast(msg, bad) {
+    const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ---------- события ----------
+document.querySelectorAll('[data-line]').forEach(el => el.addEventListener('input', () => { state.lines[+el.dataset.line] = el.value; changed(); }));
+document.querySelectorAll('[data-note]').forEach(el => el.addEventListener('input', () => { state.notes[+el.dataset.note] = el.value; changed(); }));
+$('saveBtn').onclick = () => save(false);
+$('saveNewBtn').onclick = () => save(true);
+$('printBtn').onclick = () => { if (lastRes && !lastRes.ok && !confirm('В таблице ошибка: ' + lastRes.errors[0] + '\nВсё равно печатать?')) return; window.print(); };
+$('journalBtn').onclick = openJournal;
+$('newBtn').onclick = newCalc;
+$('clearBtn').onclick = clearCols;
+$('pwdBtn').onclick = doLogin;
+$('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal-bg').classList.remove('show'));
+$('journalModal').addEventListener('click', e => { if (e.target.id === 'journalModal') e.target.classList.remove('show'); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') $('journalModal').classList.remove('show');
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (!$('saveBtn').disabled) save(false); }
+});
+window.addEventListener('beforeunload', e => { if (dirty && online) { e.preventDefault(); e.returnValue = ''; } });
+initDate();
+boot();
+</script>
+</body>
+</html>
